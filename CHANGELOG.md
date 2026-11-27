@@ -1,5 +1,33 @@
 # Changelog — BlueFairy_MegaMenuHyva
 
+## Unreleased
+
+### Tests
+
+- **Six checks that left with this package are back, in this repository.** When this package was a
+  package inside the `module-mega-menu` monorepo, six parameterised cases named `MegaMenuHyva` ran
+  against it from the base package's suite. Removing the directory took them with it, and nothing
+  here replaced them - so for a few hours this package shipped a `phpstan.neon.dist`, an
+  `etc/module.xml` and an `etc/di.xml` that nothing checked. The six were identified by name, by
+  diffing the junit case lists of the run before and the run after, rather than by reading the diff.
+  - `StaticAnalysisNeverLoadsTheUnitFrameworkTest` (3 cases): under phpstan the bootstrap must not
+    load Magento's unit-test framework, whose stand-in factories hide every type behind them; the
+    unit run still must; and analysis must refuse a root with no compiled code.
+  - `TheManifestDeclaresEveryMagentoModuleTheCodeUsesTest` (2 cases): every Magento module the
+    shipped code refers to is required in `composer.json`, and every required `magento/module-*`
+    appears in `etc/module.xml`'s `<sequence>`.
+  - `PreferenceBindingsTest` (1 case): the `<preference>` in `etc/di.xml` binds an interface that
+    exists to a class that exists and really is an instance of it.
+- **No dev dependency was added, and none was needed.** `bluefairy/module-mega-menu` is already a
+  hard `require` of this package, so wherever this package is installed the core is in the Magento
+  root's `vendor/` and its interface is autoloadable. Putting it in `require-dev` would have been
+  worse than useless: the core is not on public Packagist, so `composer install` in this public
+  repository would fail outright for anyone without Private Packagist credentials.
+- The monorepo's `PreferenceBindingsTest` prepended an autoloader for sibling packages, because it
+  read uninstalled sibling trees and a copy in `vendor/` would have tested the installed package
+  instead of the tree under test. That hack is deliberately not ported: here the core genuinely is
+  an installed dependency, and the installed copy is exactly what should be checked.
+
 ## 2.2.0 — 2026-11-27
 
 **This package is now free and open source under the MIT licence, and lives in its own public
