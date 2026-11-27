@@ -1,0 +1,26 @@
+/*
+ * Copyright © 2026 Blue Fairy Development. All rights reserved.
+ *
+ * M2MAP-230. Hyvä 1.4+ (Tailwind 4): "hyva-sources" imports THIS file instead of
+ * scanning the module directory, so the sources must be named here or every
+ * utility unique to this module's two templates is purged from the theme build -
+ * silently, no console error, no 404.
+ *
+ * A GLOB IS ENOUGH, and the reason is worth stating precisely because this
+ * module is NOT free of dynamic classes:
+ *   - desktop.phtml binds `:class="panelAlign"`, but panelAlign only ever holds
+ *     'left-0' or 'right-0', and BOTH appear as string literals in the same
+ *     .phtml (in the Alpine data). Tailwind's scanner is a plain-text scan of
+ *     the file, so it sees them.
+ *   - mobile.phtml echoes `<?= $itemClasses ?>`, whose DEFAULT is a literal
+ *     class string in the same template. A merchant who overrides it via
+ *     getItemClasses() ships classes only they know, which no module safelist
+ *     can cover - that is the merchant's build, not ours.
+ * So every class THIS module ships is literal in a scanned template. A future
+ * change that built a class name from a config value or a non-literal variable
+ * would need an `@source inline(...)` safelist; a unit test guards that.
+ *
+ * Regenerate after installing or upgrading:
+ *   bin/magento hyva:config:generate && (cd <theme>/web/tailwind && npm run build)
+ */
+@source "../templates/**/*.phtml";

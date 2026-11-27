@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © BlueFairy Development. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <!--
+         * The mega menu Navigation decorator is injected into both Hyva menu blocks
+         * as the 'viewModel' argument, scoped to these two blocks only (no global
+         * preference). The templates below read it with $block->getData('viewModel')
+         * instead of ViewModelRegistry::require(Navigation::class).
+         *
+         * M2MAP-688: this injection used to live in the BASE module's default.xml,
+         * which named these Hyva-only blocks. It moved here unchanged; hyva_default is
+         * applied on exactly the Hyva pages default was, so the blocks receive the same
+         * argument as before.
+         *
+         * There is no ifconfig here: the decorator is always injected, and
+         * BlueFairy\MegaMenu\ViewModel\Navigation::getNavigation() returns the theme's
+         * plain tree when the extension is disabled in admin, so no enrichment loads.
+        -->
+        <referenceBlock name="topmenu_desktop"
+                        template="BlueFairy_MegaMenuHyva::html/header/menu/desktop.phtml">
+            <arguments>
+                <argument name="viewModel"
+                          xsi:type="object">BlueFairy\MegaMenu\ViewModel\Navigation</argument>
+            </arguments>
+        </referenceBlock>
+        <referenceBlock name="topmenu_mobile"
+                        template="BlueFairy_MegaMenuHyva::html/header/menu/mobile.phtml">
+            <arguments>
+                <argument name="viewModel"
+                          xsi:type="object">BlueFairy\MegaMenu\ViewModel\Navigation</argument>
+            </arguments>
+        </referenceBlock>
+
+        <!--
+         * M2MAP-688: the base module's Luma renderer is declared as a child of Luma's
+         * catalog.topnav, which Hyva themes do not have. Magento already drops a child of
+         * a missing parent (planting the opposite - deleting this line - left
+         * HyvaMenuRenderTest green, M2MAP-688); this removes it explicitly so Hyva pages
+         * do not depend on that cleanup, and it is never scheduled on them.
+        -->
+        <referenceBlock name="bluefairy.megamenu.luma" remove="true"/>
+
+        <!--
+         * Strict CSP: Hyvä caches topmenu_generic, the parent of both menu blocks, in the block
+         * HTML cache. A cached render replays the CSP nonce of the request that filled the cache
+         * and registers no hash, so the browser refuses both menu scripts. The parent is not
+         * block-cached here; full page cache still caches the page.
+        -->
+        <referenceBlock name="topmenu_generic">
+            <arguments>
+                <argument name="cache_lifetime" xsi:type="null"/>
+            </arguments>
+        </referenceBlock>
+    </body>
+</page>

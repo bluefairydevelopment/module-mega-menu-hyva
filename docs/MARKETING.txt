@@ -1,0 +1,311 @@
+BlueFairy Mega Menu Hyva — Marketing Content
+==============================================
+
+
+3-SENTENCE SUMMARY
+------------------
+
+BlueFairy Mega Menu Hyva transforms standard Hyva category navigation into a rich desktop mega menu
+with hover-activated panels and a mobile-friendly accordion — fetching panel content on-demand via
+GraphQL with zero page reload, skeleton loading states, and automatic fallback to plain links if
+the query fails. Desktop panels offer columns of child links (2 to 4 from the category form, 1 to 6
+from the Menu Items form) and a featured image, CMS block or hand-picked products; mobile switches to a collapsible accordion with Escape key support and rotating
+chevron indicators. Built entirely with Alpine.js and Tailwind CSS — no jQuery, no RequireJS — it ships
+with unit and integration suites run on Magento 2.4.9 and 2.4.8 and a Playwright suite run in Chromium,
+Firefox and WebKit, switchable debug logging, and per-store-view configuration.
+
+
+HTML LONG DESCRIPTION
+---------------------
+
+<div class="megamenuhyva-extension-description">
+
+    <p class="lead">
+      Your Magento 2 storefront's category menu is one of the most critical conversion surfaces.
+      BlueFairy Mega Menu Hyva elevates the Hyva theme's navigation with a modern, high-performance
+      mega menu that engages customers on desktop and adapts elegantly on mobile. Using hover
+      activation, GraphQL lazy-loading, and a responsive accordion, it keeps page load times fast
+      while delivering rich, contextual content — all without a single jQuery library or full-page
+      reload.
+    </p>
+
+    <hr/>
+
+    <h2>Desktop Mega Menu — Rich Panel Experience</h2>
+    <p>
+      Hover over any category to reveal a fully customizable mega menu panel.
+    </p>
+    <ul>
+      <li>
+        <strong>GraphQL Lazy-Loading</strong> — Panels are fetched only when you hover, via the
+        <code>megaMenuPanel</code> query. No data is pre-loaded; only the panels you interact
+        with are fetched, keeping initial page payload minimal.
+      </li>
+      <li>
+        <strong>Skeleton Loading State</strong> — A pulsing placeholder appears while GraphQL
+        resolves, preventing jarring content shifts and giving users confidence the menu is
+        responsive.
+      </li>
+      <li>
+        <strong>Graceful Fallback</strong> — If the GraphQL query fails, the menu falls back to
+        plain child links automatically; a request still running after 8 seconds is abandoned and
+        tried again the next time the panel opens.
+        Zero broken menus, zero blank panels.
+      </li>
+      <li>
+        <strong>Per-Item Caching</strong> — Once a panel is loaded, hovering again is instant.
+        Alpine.js keeps the panel in memory for five minutes of the page visit, then fetches it again.
+      </li>
+      <li>
+        <strong>Desktop-Only Behavior</strong> — Below Tailwind's <code>lg</code> breakpoint (1024 px) the
+        desktop panels are not shown; the accordion takes over.
+      </li>
+    </ul>
+
+    <h2>Panel Content Options</h2>
+    <p>
+      Configure each category's panel layout via the admin. Choose from:
+    </p>
+    <ul>
+      <li>
+        <strong>Child Links</strong> — Organized into columns (2, 3 or 4 from the category form; 1 to 6
+        from the Menu Items form); each child links to its category.
+      </li>
+      <li>
+        <strong>Featured Image</strong> — A picture in its own column beside the links: the image you
+        upload (or an http(s) / root-relative address you give instead), linking where you choose.
+      </li>
+      <li>
+        <strong>Featured CMS Block</strong> — Any active CMS block you've created (e.g., promotional
+        copy, seasonal banners, social proof); scripts, event handlers and script-carrying elements are
+        stripped in the browser before it is shown.
+      </li>
+      <li>
+        <strong>Featured Products</strong> — Hand-picked products, in your order, each with its image,
+        name and price, linking to the product (requires BlueFairy_MegaMenuGraphQl, like every panel).
+      </li>
+    </ul>
+    <p>
+      The panel is as wide as its content (at least 40rem) and moves to the right-hand edge when it
+      would overflow the viewport.
+    </p>
+
+    <h2>Mobile — Accordion Navigation</h2>
+    <p>
+      On mobile and tablet, the mega menu adapts to a touch-friendly accordion.
+    </p>
+    <ul>
+      <li>
+        <strong>Tap to Expand</strong> — Tap any category header to open its panel; tap again to
+        close.
+      </li>
+      <li>
+        <strong>Rotating Chevron</strong> — A smooth CSS rotation indicator shows expanded/collapsed
+        state at a glance.
+      </li>
+      <li>
+        <strong>Escape Key Support</strong> — Press Escape to close all open panels instantly.
+        Improves keyboard navigation and accessibility.
+      </li>
+      <li>
+        <strong>Nested Subcategories</strong> — Subcategories remain clickable; tapping a
+        subcategory navigates directly (no further expansion).
+      </li>
+      <li>
+        <strong>Featured Banner</strong> — A category's featured image shows as a banner in its
+        accordion section (Show Banner on Mobile, per store and per category). CMS blocks and
+        featured products are desktop-panel content.
+      </li>
+    </ul>
+
+    <h2>Label Badges on Menu Items</h2>
+    <p>
+      Add visual badges to individual categories to highlight promotions, new arrivals, or stock
+      status.
+    </p>
+    <ul>
+      <li>
+        <strong>Text + Color</strong> — Each badge displays custom text (e.g., "New", "Sale",
+        "Limited Stock") with a configurable background color.
+      </li>
+      <li>
+        <strong>Optional Icon</strong> — Pair the badge text with one of five icons - star, flame, new,
+        sale or hot - drawn from Hyva's own Lucide icon set (a fixed list, not a CSS class).
+      </li>
+      <li>
+        <strong>Admin Configuration</strong> — Add, edit, or remove badges via the admin without
+        touching code.
+      </li>
+    </ul>
+
+    <h2>Performance-First Architecture</h2>
+    <p>
+      Every design decision prioritizes performance and maintainability.
+    </p>
+    <ul>
+      <li>
+        <strong>Alpine.js Only</strong> — Zero jQuery, zero RequireJS, zero page-level JavaScript
+        frameworks. Alpine.js is 16 KB minified; it's lightweight and purpose-built for reactive
+        components.
+      </li>
+      <li>
+        <strong>Hyva Strict CSP Ready</strong> — The menus work in Hyva's strict CSP mode, where the
+        store's Content Security Policy allows no unsafe-inline or unsafe-eval scripts: inline scripts
+        are registered with Hyva's CSP helper and the components run on the Alpine CSP build.
+      </li>
+      <li>
+        <strong>Per-Item Caching</strong> — Alpine state stores fetched panels in memory. Repeating
+        hover requires zero network requests.
+      </li>
+      <li>
+        <strong>bfcache Aware</strong> — When the browser restores a page from its back-forward cache,
+        each desktop menu item listens for <code>pageshow</code> and closes its open panel, so a page
+        you return to does not come back with a panel left open.
+      </li>
+      <li>
+        <strong>8-Second Timeout</strong> — A panel request still running after 8 seconds is
+        abandoned (AbortController) and tried again on the next hover; a failed query shows the plain
+        child links instead.
+      </li>
+      <li>
+        <strong>No Stylesheet of Its Own</strong> — All styling is Tailwind CSS utility classes, built into
+        the theme's CSS (the module's <code>tailwind/module.css</code> only registers its templates with
+        the build). No extra stylesheet to download or parse.
+      </li>
+    </ul>
+
+    <h2>Keyboard Accessible</h2>
+    <p>
+      Navigation must work for all users, regardless of input method.
+    </p>
+    <ul>
+      <li><strong>Escape Closes Panels</strong> — Press Escape to close the active mega menu panel (desktop) or all open accordion items (mobile).</li>
+      <li><strong>Tab Navigation</strong> — All menu links are reachable via keyboard Tab navigation.</li>
+      <li><strong>Focus Visible</strong> — Focused menu items receive visual focus indicators for screen reader and keyboard-only users.</li>
+      <li><strong>One Button per Category</strong> — A category with a panel is a single button, named by the
+        category, that opens it (Enter, Space or a click); its chevron turns when the panel is open. Each panel starts
+        with a <em>See all</em> link to the category page, as on the phone.</li>
+      <li><strong>ARIA Attributes</strong> — The menu is a <code>&lt;nav aria-label="Main menu"&gt;</code>; each
+        category button carries <code>aria-expanded</code> and <code>aria-controls</code> (the panel, present while
+        closed); decorative icons are <code>aria-hidden</code>.</li>
+    </ul>
+
+    <h2>Tailwind CSS — Hyva Native</h2>
+    <p>
+      BlueFairy Mega Menu Hyva uses only Tailwind CSS utility classes. No custom stylesheet
+      downloads, no style conflicts, no maintenance burden.
+    </p>
+    <ul>
+      <li>Styling integrates seamlessly with your existing Hyva theme configuration.</li>
+      <li>Override colors, spacing, and breakpoints via your Tailwind config without touching the module code.</li>
+      <li>Responsive design built in — mobile, tablet, and desktop layouts adapt automatically.</li>
+    </ul>
+
+    <h2>Tested</h2>
+    <ul>
+      <li>
+        <strong>Unit Tests</strong> — the label icon renderer, the Hyva navigation adapter, the layout
+        and the Tailwind registration, run by the release gate on Magento 2.4.9 and 2.4.8.
+      </li>
+      <li>
+        <strong>Integration Tests</strong> — on Magento 2.4.9 and 2.4.8 with Hyva: a real Hyva page renders
+        the menu from the core view model, every label icon renders, label colours and override URLs pass
+        the core's rules, and a Hyva store keeps its own tree and cache tags.
+      </li>
+      <li>
+        <strong>Playwright Tests</strong> — the Hyva storefront on throwaway Magento 2.4.9 and 2.4.8
+        stores: desktop panels (hover, chevron, featured image / CMS block / products, labels), keyboard
+        (Tab, Escape), the mobile accordion and banner, and the client-side URL / colour / CMS rules, in
+        Chromium, Firefox and WebKit, including the CMS Page and Custom Link menu items on desktop and
+        phone.
+      </li>
+    </ul>
+
+    <h2>Technical Highlights</h2>
+    <ul>
+      <li>
+        <strong>Alpine.js Component State</strong> — Panel state is scoped to the menu container.
+        Each menu item can toggle its panel independently; state persists during the page visit.
+      </li>
+      <li>
+        <strong>GraphQL Integration</strong> — The <code>megaMenuPanel</code> query is defined via
+        <code>schema.graphqls</code>. BlueFairy_MegaMenuGraphQl module provides the resolver; if
+        absent, the query fails gracefully and the fallback activates.
+      </li>
+      <li>
+        <strong>ViewModel Decorator</strong> — The core module's Navigation view model enriches Hyva's own
+        category tree with each category's menu row; this module binds it to Hyva's header menu blocks.
+      </li>
+      <li>
+        <strong>Declarative Database Schema</strong> — The core module keeps each category's menu row in
+        its own table, declared in <code>db_schema.xml</code>; no category attributes are added.
+      </li>
+      <li>
+        <strong>Store View Scoped Config</strong> — The enable switch, default column count, label
+        font size and border radius, and the mobile banner switch are configurable per store view.
+      </li>
+      <li>
+        <strong>Logging</strong> — A label icon that cannot render is logged (warning) and the label
+        shows without it; a failed panel fetch is reported in the browser console.
+      </li>
+      <li>
+        <strong>PHP 8.3, 8.4 or 8.5</strong>, strict types, Magento's coding standard (phpcs, warnings included) and phpstan, constructor injection.
+      </li>
+      <li>
+        <strong>Magento 2.4.8 or 2.4.9</strong>.
+      </li>
+    </ul>
+
+    <hr/>
+
+    <h2>Admin Configuration</h2>
+    <p>
+      All settings at <strong>Stores → Configuration → BlueFairy Extensions → Mega Menu</strong> (the
+      core module's):
+    </p>
+    <ul>
+      <li>Enable Mega Menu (master switch)</li>
+      <li>Default Column Count</li>
+      <li>Enable Debug Logging</li>
+      <li>Label Font Size and Label Border Radius (defaults for every label)</li>
+      <li>Show Banner on Mobile</li>
+    </ul>
+    <p>
+      Per-category settings (the Mega Menu section of the category edit form):
+    </p>
+    <ul>
+      <li>Enable Mega Menu</li>
+      <li>Label badge text, hex colour, font size and border radius</li>
+      <li>Column Count (2, 3 or 4)</li>
+      <li>Featured Content Type: None, Image, CMS Block or Products</li>
+      <li>Featured Image (an upload), Featured CMS Block (a searchable list), Featured Product IDs
+        (comma-separated)</li>
+      <li>Show on Mobile</li>
+    </ul>
+    <p>
+      Content → Mega Menu → Menu Items edits the same rows and adds the Label Icon (star, flame, new,
+      sale or hot), 1 to 6 columns, a searchable multi-select of products, an optional image address to
+      use instead of the upload, and CMS Page and Custom Link menu items - top-level links after the
+      categories, on the desktop bar and in the phone menu.
+    </p>
+
+    <h2>Installation Requirements</h2>
+    <ul>
+      <li>Magento 2.4.8 or 2.4.9</li>
+      <li>PHP 8.3, 8.4 or 8.5</li>
+      <li>Hyva Theme (required), theme module 1.3.11 or later. Running Luma instead? You do not need this module: the core
+        BlueFairy_MegaMenu renders the mega menu on Luma by itself.</li>
+      <li>BlueFairy_MegaMenu (core module; required)</li>
+      <li>BlueFairy_MegaMenuGraphQl (required for the desktop panels, which load over GraphQL)</li>
+    </ul>
+
+    <h2>Three Composer Packages</h2>
+    <ul>
+      <li><code>bluefairy/module-mega-menu</code> — Core (database tables, admin configuration and screens,
+        the enriched navigation tree, the Luma menu)</li>
+      <li><code>bluefairy/module-mega-menu-hyva</code> — Hyva theme companion (Alpine component, templates)</li>
+      <li><code>bluefairy/module-mega-menu-graph-ql</code> — GraphQL companion (the <code>megaMenuPanel</code>
+        query the desktop panels load)</li>
+    </ul>
+
+</div>

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © 2026 Blue Fairy Development. All rights reserved.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!--
+        M2MAP-688. The base module's Navigation view model decorates a theme-neutral
+        tree source; on a Hyva install that source is Hyva's own navigation view model,
+        exactly as it was before the base lost its Hyva dependency, so the menu tree,
+        its cache identities and the GraphQL panels built from it are unchanged.
+        This module loads after BlueFairy_MegaMenu (module.xml sequence), so this
+        preference replaces the base's CategoryTreeSource.
+    -->
+    <preference for="BlueFairy\MegaMenu\Api\NavigationSourceInterface"
+                type="BlueFairy\MegaMenuHyva\Model\HyvaNavigationSource"/>
+</config>

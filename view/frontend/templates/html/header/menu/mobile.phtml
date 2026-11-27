@@ -1,0 +1,333 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Copyright © BlueFairy Development. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
+use BlueFairy\MegaMenu\Model\SafeUrl;
+use BlueFairy\MegaMenu\ViewModel\LabelStyle;
+use BlueFairy\MegaMenu\ViewModel\Navigation as MegaMenuNavigation;
+use Hyva\Theme\Model\ViewModelRegistry;
+use Hyva\Theme\ViewModel\HyvaCsp;
+use Hyva\Theme\ViewModel\LucideIcons;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/** @var Template $block */
+/** @var Escaper $escaper */
+/** @var ViewModelRegistry $viewModels */
+
+/** @var MegaMenuNavigation $viewModelNavigation */
+$viewModelNavigation = $block->getData('viewModel');
+
+/** @var HyvaCsp $hyvaCsp */
+$hyvaCsp = $viewModels->require(HyvaCsp::class);
+
+/** @var LucideIcons $lucideIcons */
+$lucideIcons = $viewModels->require(LucideIcons::class);
+
+/**
+ * Admin-entered label colours / lengths and URLs pass the base
+ * module's rules - the ones the Luma menu and the GraphQL panels use.
+ * @var LabelStyle $labelStyleRule
+ * @var SafeUrl $safeUrlRule
+ */
+$labelStyleRule = $viewModels->require(LabelStyle::class);
+$safeUrlRule = $viewModels->require(SafeUrl::class);
+
+// Order is important here: 1. build the menu data, 2. then set the cache tags from the view model identities
+$menuItems = $viewModelNavigation->getNavigation(4);
+$block->setData('cache_tags', $viewModelNavigation->getIdentities());
+
+$itemClasses = (string) $block->getItemClasses() ?: "flex items-center gap-2 py-3 px-6 border-b border-slate-200 outline-offset-0";
+?>
+<div x-data="megaMenuMobile" x-bind="eventListeners" class="lg:hidden">
+    <button
+        type="button"
+        class="btn bg-transparent border-transparent p-2"
+        aria-label="<?= $escaper->escapeHtmlAttr(__('Open menu')) ?>"
+        @click="open"
+    >
+        <?= $lucideIcons->menuHtml('', 24, 24, ["aria-hidden" => "true"]) ?>
+    </button>
+    <dialog
+        class="size-full max-h-full ms-0 p-0 open:flex flex-col transition ease-out duration-300 motion-reduce:duration-0 rounded-s-none"
+        x-show="isOpen"
+        x-htmldialog="close"
+        closeby="any"
+        x-transition:enter-start="-translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="-translate-x-full"
+    >
+        <div class="border-b border-slate-200">
+            <div class="flex justify-between items-center gap-2 py-4 px-6">
+                <div><?= /* @noEscape */ $block->getChildHtml('logo') ?></div>
+                <button
+                    type="button"
+                    @click="close"
+                    class="btn bg-transparent border-transparent p-1"
+                    aria-label="<?= $escaper->escapeHtmlAttr(__('Close menu')) ?>"
+                >
+                    <?= $lucideIcons->xHtml('', 24, 24, ["aria-hidden" => "true"]) ?>
+                </button>
+            </div>
+        </div>
+        <div class="grow relative overflow-y-auto overflow-x-clip py-0.5" :style="lockWrapperScroll">
+            <nav aria-label="<?= $escaper->escapeHtmlAttr(__('Mobile Main Menu')) ?>">
+                <ul>
+                    <?php foreach ($menuItems as $menuItem): ?>
+                        <?php
+                        $hasChildren = !empty($menuItem['childData']);
+                        $labelText = (string) ($menuItem['label_text'] ?? '');
+                        // M2MAP-577 feature: per-category label colour, font-size and border-radius,
+                        // validated before use (closes the label-color CSS-injection LOW) - by the
+                        // shared rule (LabelStyle). Values already fall
+                        // back to the store default in the ViewModel.
+                        $labelColor = $labelStyleRule->color((string) ($menuItem['label_color'] ?? '')) ?? '';
+                        $labelFontSize = $labelStyleRule->length((string) ($menuItem['label_font_size'] ?? '')) ?? '';
+                        $labelBorderRadius = $labelStyleRule->length((string) ($menuItem['label_border_radius'] ?? '')) ?? '';
+                        $labelStyle = '';
+                        if ($labelColor !== '') {
+                            $labelStyle .= 'background-color: ' . $labelColor . '; color: #fff;';
+                        }
+                        if ($labelFontSize !== '') {
+                            $labelStyle .= ' font-size: ' . $labelFontSize . ';';
+                        }
+                        if ($labelBorderRadius !== '') {
+                            $labelStyle .= ' border-radius: ' . $labelBorderRadius . ';';
+                        }
+                        $featuredType = (string) ($menuItem['featured_type'] ?? 'none');
+                        // M2MAP-691: shown from featured_image_src - Featured Image URL, else the
+                        // uploaded file's media URL (the base's FeaturedImage rule); it read
+                        // featured_image_url alone, so an uploaded image never showed. It links
+                        // where the desktop picture does: the row's Custom URL, else the category.
+                        $featuredImageUrl = $safeUrlRule->filter($menuItem['featured_image_src'] ?? null) ?? '';
+                        $featuredImageLink = $safeUrlRule->filter($menuItem['custom_url'] ?? null)
+                            ?? (string) ($menuItem['url'] ?? '');
+                        // M2MAP-577 feature: the Show-on-Mobile toggle now actually gates the banner.
+                        $showBannerOnMobile = (bool) ($menuItem['show_banner_on_mobile'] ?? true);
+                        $showBanner = $featuredType === 'image' && $featuredImageUrl !== '' && $showBannerOnMobile;
+                        ?>
+                        <?php if ($hasChildren): ?>
+                            <li data-level="0" x-data="megaMenuMobileSubMenu" x-bind="eventListeners">
+                                <button
+                                    type="button"
+                                    class="w-full justify-between <?= $escaper->escapeHtmlAttr($itemClasses) ?>"
+                                    aria-controls="<?= $escaper->escapeHtml($menuItem['id']) ?>-mobile-menu-panel"
+                                    x-ref="openSubMenuBtn"
+                                    :aria-expanded="isOpen"
+                                    :disabled="isOpen"
+                                    @click="open"
+                                >
+                                    <span class="flex items-center gap-2">
+                                        <span><?= $escaper->escapeHtml($menuItem['name']) ?></span>
+                                        <?php if ($labelText !== ''): ?>
+                                            <span
+                                                class="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded"
+                                                <?php if ($labelStyle !== ''): ?>
+                                                style="<?= $escaper->escapeHtmlAttr($labelStyle) ?>"
+                                                <?php endif; ?>
+                                            >
+                                                <?= $escaper->escapeHtml($labelText) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </span>
+                                    <span class="btn p-1.5 border border-slate-300 bg-transparent text-current">
+                                        <?= $lucideIcons->chevronRightHtml('', 20, 20, ['aria-hidden' => 'true']) ?>
+                                    </span>
+                                </button>
+                                <ul
+                                    id="<?= $escaper->escapeHtml($menuItem['id']) ?>-mobile-menu-panel"
+                                    class="z-10 absolute inset-0 bg-white py-0.5 overflow-y-auto overscroll-y-contain transition motion-reduce:duration-0"
+                                    x-show="isOpen"
+                                    x-transition:enter-start="opacity-0 translate-x-8"
+                                    x-transition:enter-end="opacity-100 translate-x-0"
+                                    x-transition:leave-start="opacity-100 translate-x-0"
+                                    x-transition:leave-end="opacity-0 translate-x-8"
+                                    @keydown.escape.stop.prevent="close"
+                                >
+                                    <li data-level="1">
+                                        <button
+                                            type="button"
+                                            class="w-full bg-surface font-bold <?= $escaper->escapeHtmlAttr($itemClasses) ?>"
+                                            @click="close"
+                                            x-ref="closeSubMenuBtn"
+                                        >
+                                            <?= $lucideIcons->chevronLeftHtml('', 20, 20, ['aria-hidden' => 'true']) ?>
+                                            <?= $escaper->escapeHtml($menuItem['name']) ?>
+                                        </button>
+                                        <a
+                                            href="<?= $escaper->escapeUrl($menuItem['url']) ?>"
+                                            class="<?= $escaper->escapeHtmlAttr($itemClasses) ?>"
+                                        >
+                                            <span class="ms-7"><?= $escaper->escapeHtml(__('See all %1', $menuItem['name'])) ?></span>
+                                        </a>
+                                    </li>
+                                    <?php if ($showBanner): ?>
+                                        <li data-level="1" class="px-6 py-3 border-b border-slate-200">
+                                            <a
+                                                href="<?= $escaper->escapeUrl($featuredImageLink) ?>"
+                                                class="block"
+                                                aria-label="<?= $escaper->escapeHtmlAttr(__('%1 featured banner', $menuItem['name'])) ?>"
+                                            >
+                                                <img
+                                                    src="<?= $escaper->escapeUrl($featuredImageUrl) ?>"
+                                                    alt="<?= $escaper->escapeHtmlAttr($menuItem['name']) ?>"
+                                                    class="w-full h-auto rounded"
+                                                    loading="lazy"
+                                                />
+                                            </a>
+                                        </li>
+                                    <?php endif; ?>
+                                    <?php foreach ($menuItem['childData'] as $subMenuItem): ?>
+                                        <?php
+                                        $subLabelText = (string) ($subMenuItem['child_override']['label_text'] ?? '');
+                                        $subLabelColor = $labelStyleRule->color(
+                                            (string) ($subMenuItem['child_override']['label_color'] ?? '')
+                                        ) ?? '';
+                                        // An override URL that fails the shared rule (e.g.
+                                        // "//host") is ignored and the category's own URL used.
+                                        $subUrl = $safeUrlRule->filter($subMenuItem['child_override']['custom_url'] ?? null)
+                                            ?? (string) ($subMenuItem['url'] ?? '');
+                                        ?>
+                                        <li data-level="1">
+                                            <a
+                                                href="<?= $escaper->escapeUrl($subUrl) ?>"
+                                                class="<?= $escaper->escapeHtmlAttr($itemClasses) ?>"
+                                            >
+                                                <span class="ms-7 flex items-center gap-2">
+                                                    <span><?= $escaper->escapeHtml($subMenuItem['name']) ?></span>
+                                                    <?php if ($subLabelText !== ''): ?>
+                                                        <span
+                                                            class="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded"
+                                                            <?php if ($subLabelColor !== ''): ?>
+                                                            style="background-color: <?= $escaper->escapeHtmlAttr($subLabelColor) ?>; color: #fff;"
+                                                            <?php endif; ?>
+                                                        >
+                                                            <?= $escaper->escapeHtml($subLabelText) ?>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </span>
+                                            </a>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </li>
+                        <?php else: ?>
+                            <li data-level="0">
+                                <a
+                                    href="<?= $escaper->escapeUrl($menuItem['url']) ?>"
+                                    class="<?= $escaper->escapeHtmlAttr($itemClasses) ?>"
+                                >
+                                    <span class="flex items-center gap-2">
+                                        <span><?= $escaper->escapeHtml($menuItem['name']) ?></span>
+                                        <?php if ($labelText !== ''): ?>
+                                            <span
+                                                class="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded"
+                                                <?php if ($labelStyle !== ''): ?>
+                                                style="<?= $escaper->escapeHtmlAttr($labelStyle) ?>"
+                                                <?php endif; ?>
+                                            >
+                                                <?= $escaper->escapeHtml($labelText) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </span>
+                                </a>
+                            </li>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </ul>
+            </nav>
+        </div>
+    </dialog>
+</div>
+<script>
+    const megaMenuMobile = () => {
+        return {
+            isOpen: false,
+            isSubMenuOpen: false,
+            init() {
+                const normalise = href => href.split('?')[0].split('#')[0].replace(/\/$/, '');
+                const current = normalise(`${window.location.origin}${window.location.pathname}`);
+                Array.from(this.$root.querySelectorAll('a')).forEach(link => {
+                    if (normalise(link.href) === current) {
+                        link.setAttribute('aria-current', 'page');
+                    }
+                });
+            },
+            open() {
+                this.isOpen = true;
+            },
+            close() {
+                this.isOpen = false;
+                this.isSubMenuOpen = false;
+                // Tell any open sub-menu components to reset their state so re-opening
+                // the drawer does not show a sub-menu still expanded.
+                this.$dispatch('megamenu-close-all-submenus');
+            },
+            lockWrapperScroll() {
+                return this.isSubMenuOpen ? { overflow: 'hidden' } : {};
+            },
+            eventListeners: {
+                ['@pageshow.window'](event) {
+                    if (event.persisted) {
+                        this.close();
+                    }
+                },
+                ['@sub-menu-state-change']() {
+                    this.isSubMenuOpen = !!this.$root.querySelector('[data-open]');
+                }
+            }
+        }
+    };
+
+    const megaMenuMobileSubMenu = () => {
+        return {
+            isOpen: false,
+            open() {
+                this.isOpen = true;
+                this.$root.setAttribute('data-open', '');
+                this.$nextTick(() => {
+                    this.$dispatch('sub-menu-state-change');
+                    this.$refs.closeSubMenuBtn.focus();
+                    this.toggleInert();
+                })
+            },
+            close() {
+                this.isOpen = false;
+                this.$root.removeAttribute('data-open');
+                this.toggleInert();
+                this.$nextTick(() => {
+                    this.$dispatch('sub-menu-state-change')
+                    this.$refs.openSubMenuBtn.focus();
+                })
+            },
+            toggleInert() {
+                // Use closest('ul') rather than parentElement to decouple from exact DOM depth.
+                const items = this.$root.closest('ul')?.children ?? [];
+                for (const item of items) {
+                    if (item.hasAttribute('data-open')) continue;
+                    item.toggleAttribute('inert', this.isOpen);
+                }
+            },
+            eventListeners: {
+                ['@megamenu-close-all-submenus.window']() {
+                    if (this.isOpen) {
+                        this.isOpen = false;
+                        this.$root.removeAttribute('data-open');
+                        this.toggleInert();
+                    }
+                }
+            }
+        }
+    }
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('megaMenuMobile', megaMenuMobile);
+        Alpine.data('megaMenuMobileSubMenu', megaMenuMobileSubMenu);
+    }, { once: true });
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>

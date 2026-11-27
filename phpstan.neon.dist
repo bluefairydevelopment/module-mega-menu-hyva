@@ -1,0 +1,18 @@
+# Gate 1 static analysis for bluefairy/module-mega-menu-hyva.
+# Run from the package root with MAGENTO_ROOT set.
+parameters:
+    # Lower bound of composer.json "php": "^8.3", made self-policing.
+    phpVersion: 80300
+    level: 5
+    paths:
+        - Model
+        - Observer
+        - ViewModel
+        - registration.php
+    excludePaths:
+        - */Test/*
+        - */docs/*
+        - */node_modules/*
+    bootstrapFiles:
+        - Test/bootstrap.php
+    treatPhpDocTypesAsCertain: false

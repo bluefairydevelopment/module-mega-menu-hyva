@@ -1,0 +1,781 @@
+<?php
+declare(strict_types=1);
+/**
+ * Copyright © BlueFairy Development. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
+use BlueFairy\MegaMenu\ViewModel\LabelStyle;
+use BlueFairy\MegaMenu\ViewModel\Navigation as MegaMenuNavigation;
+use BlueFairy\MegaMenuHyva\ViewModel\LabelIconRenderer;
+use Hyva\Theme\Model\ViewModelRegistry;
+use Hyva\Theme\ViewModel\HyvaCsp;
+use Hyva\Theme\ViewModel\LucideIcons;
+use Hyva\Theme\ViewModel\Store as HyvaStoreViewModel;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/** @var Template $block */
+/** @var Escaper $escaper */
+/** @var ViewModelRegistry $viewModels */
+
+/** @var MegaMenuNavigation $viewModelNavigation */
+$viewModelNavigation = $block->getData('viewModel');
+
+/** @var HyvaCsp $hyvaCsp */
+$hyvaCsp = $viewModels->require(HyvaCsp::class);
+
+/** @var LucideIcons $lucideIcons */
+$lucideIcons = $viewModels->require(LucideIcons::class);
+
+/**
+ * M2MAP-688: label icons go through this, not straight to LucideIcons - the admin's
+ * New/Sale/Hot are not Lucide names, and renderHtml() threw for them.
+ * @var LabelIconRenderer $labelIconRenderer
+ */
+$labelIconRenderer = $viewModels->require(LabelIconRenderer::class);
+
+/**
+ * Label colours and lengths pass the base module's rule (exactly
+ * #rgb / #rrggbb, a number with px/rem/em/%, anchored with \z) - the Luma menu's rule.
+ * @var LabelStyle $labelStyleRule
+ */
+$labelStyleRule = $viewModels->require(LabelStyle::class);
+
+/** @var HyvaStoreViewModel $hyvaStore */
+$hyvaStore = $viewModels->require(HyvaStoreViewModel::class);
+
+// Order is important: build the menu data first, then read identities for cache tags.
+$menuItems = $viewModelNavigation->getNavigation(4);
+$block->setData('cache_tags', $viewModelNavigation->getIdentities());
+
+$storeCode = '';
+try {
+    $storeCode = (string) $hyvaStore->getStoreCode();
+} catch (\Exception $e) {
+    $storeCode = '';
+}
+
+$uniqueId = '_' . substr(hash('sha256', $block->getNameInLayout()), 0, 8);
+?>
+<div
+    x-data="megaMenuDesktop"
+    x-cloak
+    @megamenu-open-panel="onOpenPanel"
+    data-store-code="<?= $escaper->escapeHtmlAttr($storeCode) ?>"
+    class="z-20 navigation hidden lg:flex"
+>
+    <div class="hidden lg:block lg:px-8">
+        <nav
+            class="relative"
+            aria-label="<?= $escaper->escapeHtmlAttr(__('Main menu')) ?>"
+        >
+            <ul class="flex justify-start flex-wrap gap-x-7 py-4">
+                <?php foreach ($menuItems as $index => $menuItem): ?>
+                    <?php
+                    // category_id is written directly by Navigation::mergeTree; fall back to
+                    // parsing Hyva's "category-node-{N}" string only when enrichment is disabled.
+                    if (isset($menuItem['category_id'])) {
+                        $itemId = (int) $menuItem['category_id'];
+                    } else {
+                        $rawNodeId = (string) ($menuItem['id'] ?? '');
+                        $pos = strrpos($rawNodeId, '-');
+                        $segment = $pos === false ? $rawNodeId : substr($rawNodeId, $pos + 1);
+                        $itemId = ($segment !== '' && ctype_digit($segment)) ? (int) $segment : 0;
+                    }
+                    $hasPanel = !empty($menuItem['has_panel']);
+                    $labelText = (string) ($menuItem['label_text'] ?? '');
+                    // M2MAP-577: label_color, font size and border radius
+                    // pass the shared rule (LabelStyle) before they reach the style attribute.
+                    $labelColor = $labelStyleRule->color((string) ($menuItem['label_color'] ?? '')) ?? '';
+                    $labelFontSize = $labelStyleRule->length((string) ($menuItem['label_font_size'] ?? '')) ?? '';
+                    $labelBorderRadius = $labelStyleRule->length((string) ($menuItem['label_border_radius'] ?? '')) ?? '';
+                    $labelIcon = (string) ($menuItem['label_icon'] ?? '');
+                    $childData = isset($menuItem['childData']) && is_array($menuItem['childData'])
+                        ? $menuItem['childData']
+                        : [];
+
+                    $fallbackChildren = [];
+                    foreach ($childData as $childKey => $childItem) {
+                        if (!is_array($childItem)) {
+                            continue;
+                        }
+                        $fallbackChildren[] = [
+                            'name' => (string) ($childItem['name'] ?? ''),
+                            'url' => (string) ($childItem['url'] ?? ''),
+                        ];
+                    }
+                    $controlsId = 'megamenu-panel-' . $escaper->escapeHtmlAttr((string) $index) . $uniqueId;
+                    ?>
+                    <?php
+                    /*
+                     * megaMenuDesktopItem is a nested Alpine component.  It deliberately
+                     * relies on Alpine's scope-chain inheritance to call isPanelLoaded() and
+                     * hasPanelError() and to read panelCache from the parent megaMenuDesktop
+                     * component.  This is intentional: Alpine v3 walks up the x-data tree
+                     * so child components can read parent scope.  Do not refactor without
+                     * verifying that the scope chain still resolves these methods.
+                     *
+                     * Strict CSP (the Alpine CSP build): every Alpine attribute below names a
+                     * property or a method and never holds an expression. The item's category
+                     * id travels in data-panel-item-id (0 when it has no panel).
+                     */
+                    ?>
+                    <li
+                        class="relative level-0 border-b-2 border-transparent hover:border-primary"
+                        x-data="megaMenuDesktopItem"
+                        x-bind="eventListeners"
+                        data-panel-item-id="<?= $hasPanel ? (int) $itemId : 0 ?>"
+                        @mouseenter="hoverOpen"
+                        @mouseleave="canHoverClose"
+                        @click.outside="close"
+                        @keydown.escape="escape"
+                    >
+                        <?php
+                        // BFDPROD-131: an item that opens something is ONE disclosure button - name,
+                        // label and caret - not a link with a separate caret button beside it (a split
+                        // button: two tab stops, two targets). Its category page is the panel's first
+                        // link, "See all <Category>", as on the mobile menu.
+                        $isToggle = $hasPanel || !empty($childData);
+                        $labelHtml = '';
+                        if ($labelText !== '') {
+                            $resolvedLabelColor = $labelColor !== '' ? $labelColor : '#2563eb';
+                            $labelStyle = 'background-color: ' . $resolvedLabelColor . ';';
+                            if ($labelFontSize !== '') {
+                                $labelStyle .= ' font-size: ' . $labelFontSize . ';';
+                            }
+                            if ($labelBorderRadius !== '') {
+                                $labelStyle .= ' border-radius: ' . $labelBorderRadius . ';';
+                            }
+                            $labelIconHtml = $labelIconRenderer->render($labelIcon);
+                            $labelHtml = '<span class="ml-2 inline-flex items-center gap-1 px-2 py-0.5'
+                                . ' text-xs font-semibold rounded text-white" style="'
+                                . $escaper->escapeHtmlAttr($labelStyle) . '">'
+                                . ($labelIconHtml !== ''
+                                    ? '<span class="megamenu-label-icon" aria-hidden="true">' . $labelIconHtml . '</span>'
+                                    : '')
+                                . $escaper->escapeHtml($labelText)
+                                . '</span>';
+                        }
+                        ?>
+                        <span class="flex items-center text-md">
+                            <?php if ($isToggle): ?>
+                                <button
+                                    type="button"
+                                    class="level-0 group flex items-center gap-1 py-2 px-1 rounded"
+                                    @click="toggle"
+                                    :aria-expanded="open"
+                                    aria-expanded="false"
+                                    aria-controls="<?= $escaper->escapeHtmlAttr($controlsId) ?>"
+                                >
+                                    <span><?= $escaper->escapeHtml($menuItem['name']) ?></span>
+                                    <?= /* @noEscape */ $labelHtml ?>
+                                    <?= $lucideIcons->chevronDownHtml(
+                                        'transition-transform group-aria-expanded:rotate-180',
+                                        20,
+                                        20,
+                                        ['aria-hidden' => 'true']
+                                    ) ?>
+                                </button>
+                            <?php else: ?>
+                                <a
+                                    href="<?= $escaper->escapeUrl($menuItem['url']) ?>"
+                                    class="level-0 block py-2 px-1 rounded aria-[current=page]:font-medium"
+                                >
+                                    <?= $escaper->escapeHtml($menuItem['name']) ?>
+                                </a>
+                                <?= /* @noEscape */ $labelHtml ?>
+                            <?php endif; ?>
+                        </span>
+
+                        <?php if ($hasPanel): ?>
+                            <?php
+                            $childrenJson = json_encode($fallbackChildren, JSON_UNESCAPED_SLASHES);
+                            $seeAllLabel = __('See all %1', $menuItem['name']);
+                            ?>
+                            <div
+                                id="<?= $escaper->escapeHtmlAttr($controlsId) ?>"
+                                class="z-10 absolute top-full mt-0.5 min-w-[40rem]
+                                       max-w-screen-xl bg-white shadow-lg rounded-md p-6 text-primary"
+                                :class="panelAlign"
+                                x-effect="alignPanel"
+                                data-item-id="<?= (int) $itemId ?>"
+                                data-children="<?= $escaper->escapeHtmlAttr((string) $childrenJson) ?>"
+                                x-show="open"
+                                x-transition
+                                x-cloak
+                            >
+                                <a
+                                    href="<?= $escaper->escapeUrl($menuItem['url']) ?>"
+                                    class="megamenu-see-all inline-block mb-4 font-semibold underline-offset-2 hover:underline"
+                                ><?= $escaper->escapeHtml($seeAllLabel) ?></a>
+                                <template x-if="panelLoaded">
+                                    <div
+                                        class="megamenu-panel-loaded"
+                                        x-data="megaMenuDesktopPanel"
+                                    >
+                                        <!-- CMS block: rendered full-width, outside the column grid.
+                                             x-html renders raw HTML from the server-side GraphQL resolver.
+                                             Content is admin-controlled (same trust level as server-rendered
+                                             CMS blocks).  Note: Alpine's x-html does NOT execute <script> tags,
+                                             but inline event handlers (onerror, onload) on injected elements
+                                             WILL fire.  Restrict CMS block content to trusted admins only. -->
+                                        <template x-if="isCmsBlock">
+                                            <div class="megamenu-cms-block" x-html="cmsBlockHtml"></div>
+                                        </template>
+
+                                        <!-- Column grid: only shown when there are columns or a non-CMS-block featured -->
+                                        <div
+                                            class="grid gap-6"
+                                            :style="gridStyle"
+                                            x-show="showGrid"
+                                        >
+                                            <template x-for="column in panel.columns">
+                                                <div class="megamenu-column flex flex-col gap-2">
+                                                    <template
+                                                        x-for="child in column.items"
+                                                        :key="child.id"
+                                                    >
+                                                        <div class="megamenu-child">
+                                                            <a
+                                                                :href="childUrl"
+                                                                class="block py-1 font-medium hover:underline"
+                                                                x-text="child.name"
+                                                            ></a>
+                                                            <template x-if="hasChildLabel">
+                                                                <span
+                                                                    class="ml-2 inline-block px-1.5 py-0.5
+                                                                           text-xs font-semibold rounded text-white"
+                                                                    :style="childLabelStyle"
+                                                                    x-text="child.label.text"
+                                                                ></span>
+                                                            </template>
+                                                            <template x-if="hasGrandchildren">
+                                                                <ul class="ml-2 mt-1 flex flex-col gap-1">
+                                                                    <template
+                                                                        x-for="grand in child.children"
+                                                                        :key="grand.id"
+                                                                    >
+                                                                        <li>
+                                                                            <a
+                                                                                :href="grandUrl"
+                                                                                class="block py-1 text-sm
+                                                                                       text-gray-700 hover:underline"
+                                                                                x-text="grand.name"
+                                                                            ></a>
+                                                                        </li>
+                                                                    </template>
+                                                                </ul>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+
+                                            <template x-if="hasSideFeatured">
+                                                <div class="megamenu-featured">
+                                                    <template x-if="isFeaturedImage">
+                                                        <a
+                                                            :href="featuredImageLink"
+                                                            class="block"
+                                                        >
+                                                            <img
+                                                                :src="panel.featured.image_url"
+                                                                alt=""
+                                                                class="w-full h-auto rounded"
+                                                                loading="lazy"
+                                                            >
+                                                        </a>
+                                                    </template>
+                                                    <template x-if="isFeaturedProducts">
+                                                        <ul class="grid grid-cols-2 gap-3">
+                                                            <template
+                                                                x-for="product in panel.featured.products"
+                                                                :key="product.id"
+                                                            >
+                                                                <li class="megamenu-product">
+                                                                    <a :href="product.url" class="block">
+                                                                        <template x-if="product.image">
+                                                                            <img
+                                                                                :src="product.image"
+                                                                                alt=""
+                                                                                class="w-full h-auto rounded"
+                                                                                loading="lazy"
+                                                                            >
+                                                                        </template>
+                                                                        <span
+                                                                            class="block mt-1 text-sm font-medium"
+                                                                            x-text="product.name"
+                                                                        ></span>
+                                                                        <span
+                                                                            class="block text-sm text-gray-700"
+                                                                            x-text="product.price"
+                                                                        ></span>
+                                                                    </a>
+                                                                </li>
+                                                            </template>
+                                                        </ul>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template x-if="showSkeleton">
+                                    <div class="megamenu-panel-skeleton animate-pulse space-y-2" aria-hidden="true">
+                                        <div class="flex gap-4">
+                                            <div class="h-3 bg-gray-200 rounded w-1/3"></div>
+                                            <div class="h-3 bg-gray-200 rounded w-1/4"></div>
+                                            <div class="h-3 bg-gray-200 rounded w-1/5"></div>
+                                        </div>
+                                        <div class="flex gap-4">
+                                            <div class="h-3 bg-gray-200 rounded w-1/4"></div>
+                                            <div class="h-3 bg-gray-200 rounded w-1/3"></div>
+                                            <div class="h-3 bg-gray-200 rounded w-1/6"></div>
+                                        </div>
+                                        <span class="sr-only">
+                                            <?= $escaper->escapeHtml(__('Loading menu content')) ?>
+                                        </span>
+                                    </div>
+                                </template>
+
+                                <template x-if="panelFailed">
+                                    <div class="megamenu-panel-fallback">
+                                        <ul class="flex flex-col gap-1">
+                                            <?php foreach ($fallbackChildren as $fallbackChild): ?>
+                                                <li>
+                                                    <a
+                                                        href="<?= $escaper->escapeUrl($fallbackChild['url']) ?>"
+                                                        class="block py-2 px-3 hover:bg-gray-100 rounded"
+                                                    >
+                                                        <?= $escaper->escapeHtml($fallbackChild['name']) ?>
+                                                    </a>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                </template>
+                            </div>
+                        <?php elseif (!empty($childData)): ?>
+                            <ul
+                                id="<?= $escaper->escapeHtmlAttr($controlsId) ?>"
+                                class="z-10 absolute top-full left-1/2 -translate-x-1/2 min-w-40
+                                       mt-0.5 py-2 px-1 rounded-md shadow-lg bg-white/95 text-navy"
+                                x-show="open"
+                                x-transition
+                                x-cloak
+                            >
+                                <li>
+                                    <a
+                                        href="<?= $escaper->escapeUrl($menuItem['url']) ?>"
+                                        class="megamenu-see-all block py-3 px-5 font-semibold hover:bg-gray-100 text-nowrap"
+                                    ><?= $escaper->escapeHtml(__('See all %1', $menuItem['name'])) ?></a>
+                                </li>
+                                <?php foreach ($childData as $subMenuItem): ?>
+                                    <?php if (!is_array($subMenuItem)) {
+                                        continue;
+                                    } ?>
+                                    <li>
+                                        <a
+                                            href="<?= $escaper->escapeUrl($subMenuItem['url'] ?? '#') ?>"
+                                            title="<?= $escaper->escapeHtmlAttr($subMenuItem['name'] ?? '') ?>"
+                                            class="block py-3 px-5 hover:bg-gray-100
+                                                   aria-[current=page]:font-medium text-nowrap"
+                                        >
+                                            <?= $escaper->escapeHtml($subMenuItem['name'] ?? '') ?>
+                                        </a>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<script>
+    const HOVER_MEDIA = window.matchMedia('(hover: hover) and (pointer: fine)');
+
+    function megaMenuDesktop() {
+        const PANEL_QUERY = `
+            query MegaMenuPanel($categoryId: Int!) {
+                megaMenuPanel(category_id: $categoryId) {
+                    category_id
+                    column_count
+                    columns {
+                        items {
+                            id
+                            name
+                            url
+                            level
+                            sort_order
+                            is_enabled
+                            label { text color icon }
+                            has_panel
+                            children {
+                                id
+                                name
+                                url
+                                level
+                                sort_order
+                                is_enabled
+                                label { text color icon }
+                                has_panel
+                            }
+                        }
+                    }
+                    featured {
+                        type
+                        image_url
+                        image_link
+                        cms_block_content
+                        products { id name url image price }
+                    }
+                }
+            }`;
+
+        // Panel cache TTL — stale entries are evicted on next access rather than via a timer.
+        const PANEL_TTL_MS = 5 * 60 * 1000;
+
+        return {
+            panelCache: {},
+            panelErrors: {},
+            panelCacheTimes: {},
+            panelFetching: {},
+            storeCode: '',
+            init() {
+                this.storeCode = this.$root.dataset.storeCode || '';
+            },
+            // The server's rule (BlueFairy\MegaMenu\Model\SafeUrl) -
+            // an http(s) URL or a root-relative path; never "//host", a backslash anywhere ("/\host"
+            // is "//host" to a browser) or a control character (a browser strips a tab or newline,
+            // which turns "/\t/host" into "//host"). It accepted anything starting with "/" before.
+            safeUrl(url) {
+                if (typeof url !== 'string' || url === '' || /[\\\u0000-\u001f\u007f]/.test(url)) {
+                    return '#';
+                }
+                return (/^https?:\/\//i.test(url) || /^\/(?!\/)/.test(url)) ? url : '#';
+            },
+            // M2MAP-577 hardening: admin-sourced label colour, exactly
+            // #rgb or #rrggbb (the server's LabelStyle rule) before it reaches a style string.
+            safeLabelColor(color) {
+                return (typeof color === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color))
+                    ? color
+                    : '#2563eb';
+            },
+            openPanel(itemId) {
+                if (!this.isPanelLoaded(itemId) && !this.panelErrors[itemId] && !this.panelFetching[itemId]) {
+                    this.fetchPanel(itemId);
+                }
+            },
+            // The chevron alone (Enter, Space, a click that no hover
+            // preceded) opens a panel; the item asks for its content with this event, which the root
+            // listens to (@megamenu-open-panel), because the item is a nested component and its own
+            // methods do not see this one. Hover fetches through openPanel() directly.
+            onOpenPanel(event) {
+                const itemId = event && event.detail ? Number(event.detail.itemId) : 0;
+                if (itemId > 0) {
+                    this.openPanel(itemId);
+                }
+            },
+            // No-op: exists so @click.outside="close" on <nav> resolves without error.
+            // Actual panel close is handled by megaMenuDesktopItem.close() on the <li>.
+            close() {},
+            isPanelLoaded(itemId) {
+                if (!this.panelCache[itemId]) return false;
+                if (Date.now() - (this.panelCacheTimes[itemId] || 0) > PANEL_TTL_MS) {
+                    delete this.panelCache[itemId];
+                    delete this.panelCacheTimes[itemId];
+                    return false;
+                }
+                return true;
+            },
+            hasPanelError(itemId) {
+                return !!this.panelErrors[itemId];
+            },
+            // Strips inline event handlers, script elements, and javascript: hrefs from admin CMS HTML.
+            // Alpine's x-html does not execute script elements, but on* attributes on injected
+            // (Never write the tag itself in this script: Hyvä's CSP helper gives its nonce to the
+            // last opening script tag in the output, and one in a comment here took it.)
+            // elements WILL fire — this prevents that without requiring DOMPurify.
+            sanitizeCmsHtml(html) {
+                if (!html) return '';
+                // Parsed into an INERT document. Setting
+                // innerHTML on an element of the live page made the browser fetch <img src>
+                // and fire onerror before this function could strip the handler.
+                const root = new DOMParser().parseFromString(String(html), 'text/html').body;
+                // M2MAP-577 hardening. Remove elements that execute or re-parse
+                // into script: <template>/<svg>/<math> content is not walked by
+                // querySelectorAll('*'), so on* handlers nested there would survive
+                // (mXSS on Alpine's re-parse). This is defense in depth - the CMS
+                // block is already server-filtered via FilterProvider.
+                // noscript / noembed / noframes: the
+                // inert document parses with scripting OFF, so <noscript> content is markup
+                // there - a <p title="</noscript><img onerror=...>"> passes the attribute walk -
+                // while the live page parses it with scripting ON, as raw text that ends at
+                // the "</noscript>" inside the attribute, and the <img> after it is real.
+                // noembed and noframes are raw-text elements of the same kind; none belongs in
+                // a menu panel.
+                root.querySelectorAll(
+                    'script, style, iframe, frame, frameset, object, embed, template, svg, math, link, meta, base, '
+                    + 'noscript, noembed, noframes'
+                ).forEach(el => el.remove());
+                // Strip control chars/whitespace before the scheme test: a browser
+                // does that itself when resolving the URL, so href="java\tscript:..."
+                // executes while a raw /^javascript:/ test misses it.
+                const badScheme = (value) =>
+                    /^(javascript|data|vbscript):/.test((value || '').replace(/[\u0000-\u0020]+/g, '').toLowerCase());
+                const urlAttributes = ['href', 'src', 'action', 'formaction', 'xlink:href', 'poster', 'background'];
+                root.querySelectorAll('*').forEach(el => {
+                    Array.from(el.attributes).forEach(attr => {
+                        const name = attr.name.toLowerCase();
+                        // srcdoc is a whole document (scripts included) in an iframe-like context.
+                        if (name.startsWith('on') || name === 'srcdoc') {
+                            el.removeAttribute(attr.name);
+                        } else if (urlAttributes.includes(name) && badScheme(attr.value)) {
+                            el.removeAttribute(attr.name);
+                        }
+                    });
+                });
+                return root.innerHTML;
+            },
+            megaMenuPanelGridStyle(panel) {
+                if (!panel) {
+                    return '';
+                }
+                const cols = (panel.columns || []).length;
+                const hasFeatured = panel.featured
+                    && panel.featured.type !== 'none'
+                    && panel.featured.type !== 'cms_block';
+                if (cols === 0 && !hasFeatured) {
+                    return '';
+                }
+                // Featured gets a fixed 200 px slot so column_count is respected exactly.
+                const featuredCol = hasFeatured ? ' 200px' : '';
+                const dataCols = cols > 0 ? 'repeat(' + cols + ', minmax(0, 1fr))' : '';
+                return 'grid-template-columns: ' + dataCols + featuredCol;
+            },
+            async fetchPanel(itemId) {
+                this.panelFetching[itemId] = true;
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 8000);
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (this.storeCode) {
+                        headers['Store'] = this.storeCode;
+                    }
+                    const response = await fetch('/graphql', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({
+                            query: PANEL_QUERY,
+                            variables: { categoryId: itemId }
+                        }),
+                        signal: controller.signal
+                    });
+                    const data = await response.json();
+                    if (data.errors || !data.data || !data.data.megaMenuPanel) {
+                        this.panelErrors[itemId] = true;
+                    } else {
+                        const panel = data.data.megaMenuPanel;
+                        if (panel.featured) {
+                            panel.featured.image_url = this.safeUrl(panel.featured.image_url);
+                            panel.featured.image_link = this.safeUrl(panel.featured.image_link);
+                            if (Array.isArray(panel.featured.products)) {
+                                panel.featured.products.forEach(p => {
+                                    p.url = this.safeUrl(p.url);
+                                    if (p.image) p.image = this.safeUrl(p.image);
+                                });
+                            }
+                        }
+                        this.panelCache[itemId] = panel;
+                        this.panelCacheTimes[itemId] = Date.now();
+                    }
+                } catch (e) {
+                    if (e && e.name === 'AbortError') {
+                        // Timeout or navigation — not a real error, don't mark as failed.
+                    } else {
+                        this.panelErrors[itemId] = true;
+                        console.error('[MegaMenu] panel fetch failed for id', itemId, e);
+                    }
+                } finally {
+                    clearTimeout(timeout);
+                    delete this.panelFetching[itemId];
+                }
+            }
+        };
+    }
+
+    function megaMenuDesktopItem() {
+        return {
+            open: false,
+            // True while the panel is open because the pointer hovered the item (M2MAP-688).
+            hoverOpened: false,
+            panelAlign: 'left-0',
+            // The category whose panel this item opens, from data-panel-item-id; 0 without a panel.
+            panelItemId: 0,
+            init() {
+                this.panelItemId = Number(this.$root.dataset.panelItemId) || 0;
+            },
+            // Asks the root component for this item's panel content (a no-op once loaded).
+            requestPanel() {
+                if (this.panelItemId > 0) {
+                    this.$dispatch('megamenu-open-panel', { itemId: this.panelItemId });
+                }
+            },
+            hoverOpen() {
+                this.canHoverOpen();
+                this.requestPanel();
+            },
+            panelLoaded() {
+                return this.panelItemId > 0 && this.isPanelLoaded(this.panelItemId);
+            },
+            panelFailed() {
+                return this.panelItemId > 0 && this.hasPanelError(this.panelItemId);
+            },
+            showSkeleton() {
+                return this.open && !this.panelLoaded() && !this.panelFailed();
+            },
+            alignPanel() {
+                if (this.open) {
+                    this.checkPanelAlign(this.$el);
+                }
+            },
+            toggle() {
+                // A pointer reaching the chevron has already opened the panel by hovering the
+                // item; that click means "keep it open", not "close it" (as on Luma).
+                if (this.open && this.hoverOpened) {
+                    this.hoverOpened = false;
+                    return;
+                }
+                this.open = !this.open;
+                // Opened by the chevron alone: hovering fetched nothing, so ask for the content
+                // (keyboard-only users otherwise saw the skeleton for ever). A no-op when loaded.
+                if (this.open) {
+                    this.requestPanel();
+                }
+            },
+            close() {
+                this.open = false;
+                this.hoverOpened = false;
+            },
+            // Escape: closes the open panel and, when focus
+            // was inside the item (its links, its panel), returns it to the item's chevron button -
+            // the control that opened the panel (disclosure navigation pattern) - or, without a
+            // chevron, to the item's link. A closed panel's links are hidden, so focus left on one
+            // was lost to the page.
+            // A handled Escape stops here (BFDPROD-131, 2.1.1): a theme listening for Escape on the
+            // whole window (a header search that refocuses its button) runs after this, as the
+            // event bubbles, and took focus off the button. An Escape with no open panel still
+            // reaches the page.
+            escape(event) {
+                if (!this.open) {
+                    return;
+                }
+                if (event) {
+                    event.stopPropagation();
+                }
+                const hadFocus = this.$el.contains(document.activeElement);
+                this.close();
+                if (hadFocus) {
+                    const control = this.$el.querySelector('button.level-0') || this.$el.querySelector('a.level-0');
+                    if (control) {
+                        control.focus();
+                    }
+                }
+            },
+            canHoverOpen() {
+                if (HOVER_MEDIA.matches && !this.open) {
+                    this.open = true;
+                    this.hoverOpened = true;
+                }
+            },
+            canHoverClose() {
+                if (HOVER_MEDIA.matches) {
+                    this.open = false;
+                    this.hoverOpened = false;
+                }
+            },
+            // Called by alignPanel (x-effect on the panel div) whenever the panel opens.
+            // Switches to right-aligned positioning when the panel would overflow the viewport.
+            checkPanelAlign(el) {
+                this.$nextTick(() => {
+                    const rect = el.getBoundingClientRect();
+                    this.panelAlign = rect.right > window.innerWidth - 16 ? 'right-0' : 'left-0';
+                });
+            },
+            eventListeners: {
+                ['@pageshow.window'](event) {
+                    if (event.persisted) {
+                        this.open = false;
+                        this.hoverOpened = false;
+                    }
+                }
+            }
+        };
+    }
+
+    // The loaded panel's content. Its methods stand in for the expressions the Alpine CSP build
+    // cannot evaluate; loop methods read the x-for item (this.child, this.grand) from scope.
+    function megaMenuDesktopPanel() {
+        return {
+            panel: null,
+            init() {
+                this.panel = this.panelCache[this.panelItemId] || null;
+            },
+            featuredType() {
+                return this.panel && this.panel.featured ? this.panel.featured.type : 'none';
+            },
+            isCmsBlock() {
+                return this.featuredType() === 'cms_block';
+            },
+            cmsBlockHtml() {
+                return this.isCmsBlock() ? this.sanitizeCmsHtml(this.panel.featured.cms_block_content) : '';
+            },
+            gridStyle() {
+                return this.megaMenuPanelGridStyle(this.panel);
+            },
+            hasSideFeatured() {
+                const type = this.featuredType();
+                return type !== 'none' && type !== 'cms_block';
+            },
+            showGrid() {
+                return ((this.panel && this.panel.columns) || []).length > 0 || this.hasSideFeatured();
+            },
+            isFeaturedImage() {
+                return this.featuredType() === 'image';
+            },
+            isFeaturedProducts() {
+                return this.featuredType() === 'products';
+            },
+            featuredImageLink() {
+                return (this.panel && this.panel.featured && this.panel.featured.image_link) || '#';
+            },
+            childUrl() {
+                return this.safeUrl(this.child.url);
+            },
+            grandUrl() {
+                return this.safeUrl(this.grand.url);
+            },
+            hasChildLabel() {
+                return !!(this.child.label && this.child.label.text);
+            },
+            childLabelStyle() {
+                return 'background-color: ' + this.safeLabelColor(this.child.label && this.child.label.color);
+            },
+            hasGrandchildren() {
+                return !!(this.child.children && this.child.children.length);
+            }
+        };
+    }
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('megaMenuDesktop', megaMenuDesktop);
+        Alpine.data('megaMenuDesktopItem', megaMenuDesktopItem);
+        Alpine.data('megaMenuDesktopPanel', megaMenuDesktopPanel);
+    }, { once: true });
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>

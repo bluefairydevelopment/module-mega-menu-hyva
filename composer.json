@@ -1,0 +1,25 @@
+{
+    "name": "bluefairy/module-mega-menu-hyva",
+    "description": "BlueFairy MegaMenu — Hyva Theme companion module",
+    "type": "magento2-module",
+    "license": "MIT",
+    "require": {
+        "php": "~8.3.0||~8.4.0||~8.5.0",
+        "magento/framework": "~103.0.8",
+        "bluefairy/module-mega-menu": "^2.0",
+        "hyva-themes/magento2-theme-module": ">=1.3.11"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "BlueFairy\\MegaMenuHyva\\": ""
+        }
+    },
+    "extra": {
+        "hyva-themes": {
+            "source-module": "BlueFairy_MegaMenuHyva"
+        }
+    }
+}
